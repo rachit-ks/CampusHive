@@ -101,4 +101,47 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, verifyOtp, login };
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'No account found with this email' });
+    }
+
+    const otp = generateOtp();
+    await Otp.create({ email, otp });
+
+    await sendEmail(email, 'CampusHive Password Reset', `Your password reset OTP is: ${otp}`);
+
+    res.status(200).json({ message: 'OTP sent to email for password reset' });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    const otpRecord = await Otp.findOne({ email, otp });
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await User.findOneAndUpdate({ email }, { password: hashedPassword });
+
+    await Otp.deleteOne({ _id: otpRecord._id });
+
+    res.status(200).json({ message: 'Password reset successful' });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Something went wrong', error: error.message });
+  }
+};
+
+module.exports = { register, verifyOtp, login, forgotPassword, resetPassword };
